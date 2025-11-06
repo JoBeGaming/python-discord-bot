@@ -18,13 +18,13 @@ log = get_logger(__name__)
 
 GITHUB_RE = re.compile(
     r"https://github\.com/(?P<repo>[a-zA-Z0-9-]+/[\w.-]+)/blob/"
-    r"(?P<path>[^#>]+)(\?[^#>]+)?(#L(?P<start_line>\d+)(([-~:]|(\.\.))L(?P<end_line>\d+))?)"
+    r"(?P<path>[^#>]+)(\?[^#>]+)?(#L(?P<start_line>\d+)C?(?P<start_character>\d*)(([-~:]|(\.\.))L(?P<end_line>\d+))?)C?(?P<end_character>\d*)"
 )
 
 GITHUB_GIST_RE = re.compile(
     r"https://gist\.github\.com/([a-zA-Z0-9-]+)/(?P<gist_id>[a-zA-Z0-9]+)/*"
     r"(?P<revision>[a-zA-Z0-9]*)/*#file-(?P<file_path>[^#>]+?)(\?[^#>]+)?"
-    r"(-L(?P<start_line>\d+)([-~:]L(?P<end_line>\d+))?)"
+    r"(-L(?P<start_line>\d+)([-~:]L(?P<end_line>\d+))?)" # Character here too!
 )
 
 GITHUB_HEADERS = {"Accept": "application/vnd.github.v3.raw"}
