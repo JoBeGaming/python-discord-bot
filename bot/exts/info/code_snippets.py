@@ -92,7 +92,9 @@ class CodeSnippets(Cog):
         repo: str,
         path: str,
         start_line: str,
-        end_line: str
+        start_character: str,
+        end_line: str,
+        end_character: str
     ) -> str:
         """Fetches a snippet from a GitHub repo."""
         # Search the GitHub API for the specified branch
@@ -110,7 +112,11 @@ class CodeSnippets(Cog):
             "text",
             headers=GITHUB_HEADERS,
         )
-        return self._snippet_to_codeblock(file_contents, file_path, start_line, end_line)
+
+        return self._snippet_to_codeblock(
+            file_contents, file_path, start_line, end_line,
+            start_character=start_character, end_character=end_character
+        )
 
     async def _fetch_github_gist_snippet(
         self,
@@ -134,7 +140,7 @@ class CodeSnippets(Cog):
                     gist_json["files"][gist_file]["raw_url"],
                     "text",
                 )
-                return self._snippet_to_codeblock(file_contents, gist_file, start_line, end_line)
+                return self._snippet_to_codeblock(file_contents, gist_file, start_line, end_line) # TODO
         return ""
 
     async def _fetch_gitlab_snippet(
@@ -162,7 +168,7 @@ class CodeSnippets(Cog):
             f"https://gitlab.com/api/v4/projects/{enc_repo}/repository/files/{enc_file_path}/raw?ref={enc_ref}",
             "text",
         )
-        return self._snippet_to_codeblock(file_contents, file_path, start_line, end_line)
+        return self._snippet_to_codeblock(file_contents, file_path, start_line, end_line) # TODO
 
     async def _fetch_bitbucket_snippet(
         self,
@@ -177,7 +183,7 @@ class CodeSnippets(Cog):
             f"https://bitbucket.org/{quote_plus(repo)}/raw/{quote_plus(ref)}/{quote_plus(file_path)}",
             "text",
         )
-        return self._snippet_to_codeblock(file_contents, file_path, start_line, end_line)
+        return self._snippet_to_codeblock(file_contents, file_path, start_line, end_line) # TODO
 
     async def _fetch_pastebin_snippets(self, paste_id: str, selections: str) -> list[str]:
         """Fetches snippets from paste.pythondiscord.com."""
@@ -198,7 +204,7 @@ class CodeSnippets(Cog):
                 file_name,
                 start,
                 end,
-                language=file["lexer"],
+                language=file["lexer"], #NOICE
             )
 
             snippets.append(snippet)
@@ -210,8 +216,8 @@ class CodeSnippets(Cog):
             file_contents: str,
             file_path: str,
             start_line: str,
-            end_line: str|None,
-            language: str|None = None
+            end_line: str | None,
+            **kwargs: str
             ) -> str:
         """
         Given the entire file contents and target lines, creates a code block.
@@ -224,12 +230,31 @@ class CodeSnippets(Cog):
 
         Finally, we surround the code with ``` characters.
         """
+        language = kwargs.get("language", None)
+        start_character = kwargs.get("start_character", None)
+        end_character = kwargs.get("end_character", None)
+
         # Parse start_line and end_line into integers
         if end_line is None:
             start_line = end_line = int(start_line)
         else:
             start_line = int(start_line)
             end_line = int(end_line)
+
+        if not start_character is None:
+            start_character = int(start_character)
+        else:
+            # GitHub starts counting characters with 1
+            # TODO: Other services
+            start_character = 1
+
+        if not end_character is None:
+            end_character  = int(end_character)
+        else:
+            # GitHub starts counting characters with 1
+            # TODO: Other services
+            # TODO: Is this actually the END? -> Get last position!!
+            end_character = 1
 
         split_file_contents = file_contents.splitlines()
 
@@ -242,7 +267,10 @@ class CodeSnippets(Cog):
         end_line = min(len(split_file_contents), end_line)
 
         # Gets the code lines, dedents them, and inserts zero-width spaces to prevent Markdown injection
-        required = "\n".join(split_file_contents[start_line - 1:end_line])
+        full_start_line = split_file_contents[start_line - 1][start_character-1:]
+        full_end_line = split_file_contents[end_line - 1][:end_character-1]
+        required_lines = [full_start_line] + split_file_contents[start_line:end_line] + [full_end_line]
+        required = "\n".join(required_lines)
         required = textwrap.dedent(required).rstrip().replace("`", "`\u200b")
 
         if language is None:
@@ -258,14 +286,20 @@ class CodeSnippets(Cog):
 
         # Adds a label showing the file path to the snippet
         if start_line == end_line:
-            ret = f"`{file_path}` line {start_line}\n"
+            ret = f"`{file_path}` line {start_line}"
         else:
-            ret = f"`{file_path}` lines {start_line} to {end_line}\n"
+            ret = f"`{file_path}` lines {start_line} to {end_line}"
+
+        if start_character or end_character:
+            if start_character == end_character:
+                ret += f" (character {start_character})"
+            else:
+                ret += f" (character {start_character})"
 
         if len(required) != 0:
-            return f"{ret}```{language}\n{required}```"
+            return f"{ret}\n```{language}\n{required}```"
         # Returns an empty codeblock if the snippet is empty
-        return f"{ret}``` ```"
+        return f"{ret}\n``` ```"
 
     async def _parse_snippets(self, content: str) -> str:
         """Parse message content and return a string with a code block for each URL found."""
